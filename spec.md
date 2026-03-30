@@ -1,9 +1,9 @@
 # crossref-rs Project Specification (spec.md)
 
 **Project Name**: crossref-rs  
-**Version**: v0.3.0  
+**Version**: v0.4.0  
 **Status**: Revised  
-**Last Updated**: 2026-03-29  
+**Last Updated**: 2026-03-31  
 **Authors**: TWu20 (Tony Wu) + Grok-assisted design  
 **Goal**: Refactor the original Nushell Crossref tool into a high-performance, cross-platform Rust implementation that supports both Nushell native plugins and a standard CLI for use in any shell.
 
@@ -196,16 +196,13 @@ crossref-rs/
   - Refactor while keeping tests green
 - Unit test coverage target: ≥ 85% for `lib/` modules
 - Integration tests for CLI and plugin entry points
-
-### 4.2 User Experience (Emphasized)
-
-- Low barrier for first-time users thanks to smart guidance
-- Fast configuration loading with no noticeable delay
-- All guidance messages support Chinese (primary user base in Hong Kong/Chinese-speaking regions)
-
-### 4.3 Other Requirements
-
-- Performance, reliability, compatibility, and security remain as previously defined.
+- **Builder pattern** **must** be used for all complex struct creation.
+  - Use the **`derive_builder`** crate (`#[derive(Builder)]`) for all non-trivial structs (`Config`, `SearchQuery`, `BibEntry`, `Work`, etc.).
+  - This provides clean, ergonomic, immutable builders with method chaining.
+- **Functional programming style** must be used as much as possible:
+  - Prefer iterators (`iter()`, `map`, `filter`, `filter_map`, `flat_map`, `fold`, `collect`, etc.) over imperative `for` loops.
+  - Minimize mutable state; favor immutable transformations and method chaining.
+  - Use higher-order functions and combinators wherever they improve clarity and reduce side effects.
 
 ## 5. Development Standards and Workflow
 
@@ -215,6 +212,8 @@ crossref-rs/
 - **Clear separation of concerns** (API, config, cache, bibtex, CLI, plugin)
 - **No god modules or god functions**
 - All public APIs in `lib.rs` must be well-documented with Rust doc comments
+- Every complex struct **must** derive `Builder` via `derive_builder`.
+- Enforce **builder pattern** and **functional style** in every new struct and algorithm
 
 ### 5.2 Test-Driven Development (TDD) Mandate
 
@@ -245,13 +244,13 @@ crossref-rs/
 
 ## 7. Roadmap
 
-- Phase 1 (Current): Core commands + first-run guidance + caching + configuration + **SRP/TDD foundation**
+- Phase 1 (Current): Core commands + first-run guidance + caching + configuration + **SRP/TDD/Builder/FP foundation**
 - Phase 2: Deep Unpaywall integration, smart key generation, etc.
 
 ## 8. Contribution Guidelines
 
 - Fork → Feature branch → PR
-- All new code must adhere to the modular SRP + TDD rules above
+- All new code must adhere to the modular SRP + TDD + Builder pattern + Functional style rules above
 - Keep this `spec.md` updated with any changes
 
 ## 9. License
