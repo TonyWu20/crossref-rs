@@ -1,0 +1,75 @@
+[package]
+name = "crossref-rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["TWu20 <your-email@example.com>"]
+description = "Crossref literature metadata & BibTeX tool (Nushell plugin + universal CLI)"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/TonyWu20/crossref-rs"
+keywords = ["crossref", "bibtex", "literature", "nushell", "cli"]
+categories = ["command-line-utilities", "science"]
+
+# Shared library (used by both CLI and Nushell plugin)
+[lib]
+name = "crossref_lib"
+path = "src/lib.rs"
+
+# Standard CLI binary (works in zsh, fish, bash, PowerShell, etc.)
+[[bin]]
+name = "crossref"
+path = "src/bin/cli.rs"
+
+# Nushell plugin binary (registered with `register nu_plugin_crossref`)
+[[bin]]
+name = "nu_plugin_crossref"
+path = "src/bin/nu_plugin_crossref.rs"
+
+[dependencies]
+# CLI & argument parsing
+clap = { version = "4.5", features = ["derive", "env", "color"] }
+colored = "3.1"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Async HTTP
+reqwest = { version = "0.13", features = ["json", "gzip",] }
+tokio = { version = "1", features = ["full"] }
+
+# Crossref client + Unpaywall
+crossref = "0.2"          # official Crossref Rust client
+url = "2.5"
+
+# BibTeX handling
+biblatex = "0.11"
+serde_bibtex = "0.7"
+
+# Configuration & cache
+confy = "2.0.0"
+directories = "6.0"
+cached = { version = "0.59", features = ["proc_macro"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+toml = "1.1.0+spec-1.1.0"
+
+# Nushell plugin support
+nu-plugin = "0.111"
+nu-protocol = "0.111"
+
+# Output formatting
+comfy-table = "7.2"
+
+[dev-dependencies]
+# TDD & mocking (used in tests/)
+wiremock = "0.6"
+tokio-test = "0.4"
+assert_cmd = "2.2"
+predicates = "3.1"
+
+# Nix-specific build notes (optional but recommended)
+[build-dependencies]
+# None needed — your flake.nix already provides the toolchain
