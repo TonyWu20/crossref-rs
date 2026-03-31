@@ -3,7 +3,7 @@
 Query Crossref literature metadata, generate BibTeX entries, and download open-access PDFs — from the command line or inside a Nushell pipeline.
 
 [![Crates.io](https://img.shields.io/crates/v/crossref-rs)](https://crates.io/crates/crossref-rs)
-[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE-MIT)
 
 ## Features
 

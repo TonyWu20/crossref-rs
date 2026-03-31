@@ -61,10 +61,7 @@ rustPlatform.buildRustPackage rec {
       be streamed through fzf/skim for interactive selection.
     '';
     homepage = "https://github.com/TonyWu20/crossref-rs";
-    license = with lib.licenses; [
-      mit
-      asl20
-    ];
+    license = lib.licenses.mit;
     maintainers = with lib.maintainers; [ ];
     mainProgram = "nu_plugin_crossref";
     platforms = lib.platforms.unix;

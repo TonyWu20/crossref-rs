@@ -53,10 +53,7 @@ rustPlatform.buildRustPackage rec {
       Unpaywall-powered PDF download from the command line.
     '';
     homepage = "https://github.com/TonyWu20/crossref-rs";
-    license = with lib.licenses; [
-      mit
-      asl20
-    ];
+    license = lib.licenses.mit;
     maintainers = with lib.maintainers; [ ];
     mainProgram = "crossref-cli";
     platforms = lib.platforms.unix;

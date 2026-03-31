@@ -2,9 +2,9 @@
 name = "crossref-rs"
 version = "0.3.0"
 edition = "2021"
-authors = ["TWu20 <your-email@example.com>"]
+authors = ["TonyWu20 <tony.w21@gmail.com>"]
 description = "Crossref literature metadata & BibTeX tool (Nushell plugin + universal CLI)"
-license = "MIT OR Apache-2.0"
+license = "MIT"
 repository = "https://github.com/TonyWu20/crossref-rs"
 keywords = ["crossref", "bibtex", "literature", "nushell", "cli"]
 categories = ["command-line-utilities", "science"]
