@@ -34,7 +34,7 @@ anyhow = "1.0"
 thiserror = "2.0"
 
 # Async HTTP
-reqwest = { version = "0.13", features = ["json", "gzip",] }
+reqwest = { version = "0.13", features = ["json", "gzip","query"] }
 tokio = { version = "1", features = ["full"] }
 
 # Crossref client + Unpaywall
@@ -42,12 +42,11 @@ crossref = "0.2"          # official Crossref Rust client
 url = "2.5"
 
 # BibTeX handling
-biblatex = "0.11"
 serde_bibtex = "0.7"
 
 # Configuration & cache
 confy = "2.0.0"
-directories = "6.0"
+dirs = "6.0"
 cached = { version = "0.59", features = ["proc_macro"] }
 chrono = { version = "0.4", features = ["serde"] }
 
@@ -63,6 +62,7 @@ nu-protocol = "0.111"
 # Output formatting
 comfy-table = "7.2"
 derive_builder = "0.20.2"
+walkdir = "2.5.0"
 
 [dev-dependencies]
 # TDD & mocking (used in tests/)
@@ -70,6 +70,7 @@ wiremock = "0.6"
 tokio-test = "0.4"
 assert_cmd = "2.2"
 predicates = "3.1"
+tempfile = "3.17.0"
 
 # Nix-specific build notes (optional but recommended)
 [build-dependencies]

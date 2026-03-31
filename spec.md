@@ -4,7 +4,7 @@
 **Version**: v0.4.0  
 **Status**: Revised  
 **Last Updated**: 2026-03-31  
-**Authors**: TWu20 (Tony Wu) + Grok-assisted design  
+**Authors**: TWu20 (Tony Wu)
 **Goal**: Refactor the original Nushell Crossref tool into a high-performance, cross-platform Rust implementation that supports both Nushell native plugins and a standard CLI for use in any shell.
 
 ## 1. Project Goals and Vision

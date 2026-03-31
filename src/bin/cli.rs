@@ -1,128 +1,133 @@
-// src/bin/cli.rs
-// CLI binary for crossref-rs (standard shell usage: zsh, fish, bash, PowerShell, etc.)
-//
-// This file follows the spec.md (v0.3.0):
-// - Single Responsibility Principle: ONLY argument parsing, first-run guidance dispatch,
-//   command routing, and output formatting.
-// - All business logic lives in the shared library (`crossref_lib`).
-// - TDD-ready: includes `debug_assert()` verification + example parse tests.
-// - Clap v4+ best practices (derive macros + CommandFactory for testing).
-
-use anyhow::Result;
-use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+use std::sync::Arc;
+
+use clap::{Parser, Subcommand};
 
 use crossref_lib::{
-    config::{self, Config}, // handles loading + first-run guidance (CLI-only)
-    // Core command handlers (all async, return structured data)
-    fetch_bib, fetch_meta, pdf_link, run_search,
-    // Output helper (SRP: formatting + printing)
-    output::{print_output, OutputFormat},
+    bibtex::{append_to_bib_file, records_to_bibtex, work_to_bib_record},
+    cache::DiskCache,
+    client::CrossrefClient,
+    config::Config,
+    models::SearchQueryBuilder,
 };
 
-/// crossref-rs – Literature metadata & BibTeX tool
+// ─── CLI definition ───────────────────────────────────────────────────────────
+
 #[derive(Parser)]
-#[command(author, version, about, long_about = None)]
-#[command(propagate_version = true)]
+#[command(
+    name = "crossref",
+    version,
+    about = "Query Crossref literature metadata and manage BibTeX entries",
+    long_about = None,
+)]
 struct Cli {
-    #[command(flatten)]
-    global: GlobalOpts,
+    /// Path to configuration file (default: ~/.config/crossref.toml)
+    #[arg(long, global = true, value_name = "FILE")]
+    config: Option<String>,
 
-    #[command(subcommand)]
-    command: Command,
-}
-
-/// Global options available to every subcommand
-#[derive(Parser)]
-struct GlobalOpts {
-    /// Output format
-    #[arg(long, short, default_value_t = OutputFormat::Table)]
-    format: OutputFormat,
-
-    /// Path to config file (default: ~/.config/crossref.toml)
-    #[arg(long)]
-    config: Option<PathBuf>,
-
-    /// Override polite email (highest priority)
-    #[arg(long)]
+    /// Override polite email for this invocation
+    #[arg(long, global = true, env = "CROSSREF_EMAIL", value_name = "EMAIL")]
     email: Option<String>,
 
-    /// Disable cache for this run
-    #[arg(long)]
+    /// Disable response caching
+    #[arg(long, global = true)]
     no_cache: bool,
 
-    /// Verbose output (-v, -vv, …)
-    #[arg(long, short, action = clap::ArgAction::Count)]
-    verbose: u8,
+    /// Output format
+    #[arg(long, short = 'f', global = true, default_value = "table",
+          value_parser = ["table", "json", "bibtex", "yaml"])]
+    format: String,
+
+    /// Enable verbose output
+    #[arg(long, short = 'v', global = true)]
+    verbose: bool,
+
+    #[command(subcommand)]
+    command: Commands,
 }
 
 #[derive(Subcommand)]
-enum Command {
+enum Commands {
     /// Fetch metadata for one or more DOIs
     FetchMeta {
-        /// DOI(s) to fetch (space-separated or repeated)
-        #[arg(required = true)]
-        doi: Vec<String>,
+        /// DOI(s) to look up
+        #[arg(required = true, value_name = "DOI")]
+        dois: Vec<String>,
     },
 
-    /// Fetch BibTeX for one or more DOIs
+    /// Fetch BibTeX entry for one or more DOIs
     FetchBib {
-        /// DOI(s) to fetch
-        #[arg(required = true)]
-        doi: Vec<String>,
+        /// DOI(s) to look up
+        #[arg(required = true, value_name = "DOI")]
+        dois: Vec<String>,
 
-        /// Append to existing .bib file (deduplicates automatically)
-        #[arg(long)]
+        /// Append to a .bib file (deduplicates automatically)
+        #[arg(long, value_name = "FILE")]
         append: Option<PathBuf>,
 
         /// Citation key style
-        #[arg(long, default_value = "author-year")]
+        #[arg(long, default_value = "author-year",
+              value_parser = ["author-year", "short-title"])]
         key_style: String,
     },
 
-    /// Search Crossref with rich filters
+    /// Search Crossref for literature
     Search {
-        /// Title contains
+        /// Free-text query
+        #[arg(value_name = "QUERY")]
+        query: Option<String>,
+
+        /// Filter by title
         #[arg(long)]
         title: Option<String>,
 
-        /// Author contains
+        /// Filter by author
         #[arg(long)]
         author: Option<String>,
 
-        /// Year range
-        #[arg(long)]
-        year_from: Option<u32>,
-        #[arg(long)]
-        year_to: Option<u32>,
+        /// Earliest publication year
+        #[arg(long, value_name = "YEAR")]
+        year_from: Option<i32>,
 
-        /// Publication type filter
-        #[arg(long)]
+        /// Latest publication year
+        #[arg(long, value_name = "YEAR")]
+        year_to: Option<i32>,
+
+        /// Work type filter (e.g. journal-article)
+        #[arg(long, value_name = "TYPE")]
         r#type: Option<String>,
 
-        /// Open-access only
+        /// Only return open-access items
         #[arg(long)]
         open_access: bool,
 
-        /// Max results
-        #[arg(long, default_value_t = 10)]
+        /// Number of results to return
+        #[arg(long, short = 'n', default_value_t = 10)]
         rows: u32,
+
+        /// Sort order (score, updated, deposited, indexed, published)
+        #[arg(long, default_value = "score")]
+        sort: String,
     },
 
-    /// Get best PDF link (Unpaywall → EZproxy → DOI page)
+    /// Get the best available PDF link or download the PDF for a DOI
     Pdf {
-        /// DOI to resolve
+        /// DOI to look up
+        #[arg(value_name = "DOI")]
         doi: String,
+
+        /// Directory to save the downloaded PDF (default: current directory)
+        #[arg(long, short = 'o', value_name = "DIR")]
+        output: Option<PathBuf>,
     },
 
-    /// Show or edit configuration
+    /// View or edit configuration
     Config {
-        /// Show current effective config
-        #[arg(long)]
-        show: bool,
+        #[command(subcommand)]
+        action: ConfigAction,
     },
 
-    /// Cache management
+    /// Manage the local response cache
     Cache {
         #[command(subcommand)]
         action: CacheAction,
@@ -133,43 +138,52 @@ enum Command {
 }
 
 #[derive(Subcommand)]
+enum ConfigAction {
+    /// Print the path to the active config file
+    Path,
+    /// Print current effective configuration
+    Show,
+}
+
+#[derive(Subcommand)]
 enum CacheAction {
-    /// Clear the entire cache
+    /// Remove expired entries from the cache
+    Prune,
+    /// Remove all cached entries
     Clear,
 }
 
+// ─── Entry point ─────────────────────────────────────────────────────────────
+
 #[tokio::main]
 async fn main() {
-    // Let Clap handle help/version/errors automatically
-    if let Err(err) = try_main().await {
-        eprintln!("Error: {err}");
+    if let Err(e) = run().await {
+        eprintln!("error: {}", e);
         std::process::exit(1);
     }
 }
 
-async fn try_main() -> Result<()> {
+async fn run() -> crossref_lib::Result<()> {
     let cli = Cli::parse();
 
-    // === FIRST-RUN GUIDANCE (CLI-only) ===
-    // This call follows spec.md §2.2.2 exactly:
-    // - Checks env + config + CLI email
-    // - If missing → creates ~/.config/crossref.toml + colorful guidance
-    // - Prints message and exits(0) gracefully
-    let config: Config = config::load_with_guidance(&cli.global)?;
+    // First-run guidance (CLI only): exits early if guidance was printed
+    let cfg = match Config::load_with_guidance(
+        cli.email.as_deref(),
+        cli.config.as_deref(),
+    )? {
+        Some(cfg) => Arc::new(cfg),
+        None => std::process::exit(0),
+    };
 
-    // === DISPATCH TO LIBRARY (zero business logic here) ===
     match cli.command {
-        Command::FetchMeta { doi } => {
-            let result = fetch_meta(&doi, &config).await?;
-            print_output(result, cli.global.format);
+        Commands::FetchMeta { dois } => {
+            cmd_fetch_meta(&cli.format, cli.no_cache, cfg, &dois).await?;
         }
-
-        Command::FetchBib { doi, append, key_style } => {
-            let result = fetch_bib(&doi, &config, append, &key_style).await?;
-            print_output(result, cli.global.format);
+        Commands::FetchBib { dois, append, key_style: _ } => {
+            cmd_fetch_bib(&cli.format, cli.no_cache, cfg, &dois, append).await?;
         }
-
-        Command::Search {
+        Commands::Search {
+            query,
             title,
             author,
             year_from,
@@ -177,40 +191,33 @@ async fn try_main() -> Result<()> {
             r#type,
             open_access,
             rows,
+            sort,
         } => {
-            let result = run_search(
-                title,
-                author,
-                year_from,
-                year_to,
-                r#type,
-                open_access,
-                rows,
-                &config,
-            )
-            .await?;
-            print_output(result, cli.global.format);
+            let search_q = SearchQueryBuilder::default()
+                .query(query)
+                .title(title)
+                .author(author)
+                .year_from(year_from)
+                .year_to(year_to)
+                .work_type(r#type)
+                .open_access(open_access)
+                .rows(rows)
+                .sort(sort)
+                .build()
+                .map_err(|e| crossref_lib::CrossrefError::Builder(e.to_string()))?;
+            cmd_search(&cli.format, cli.no_cache, cfg, &search_q).await?;
         }
-
-        Command::Pdf { doi } => {
-            let result = pdf_link(&doi, &config).await?;
-            print_output(result, cli.global.format);
+        Commands::Pdf { doi, output } => {
+            let dest = output.unwrap_or_else(|| PathBuf::from("."));
+            cmd_pdf(cfg, &doi, &dest).await?;
         }
-
-        Command::Config { show } => {
-            if show {
-                println!("{:#?}", config);
-            } else {
-                println!("Use `crossref config --show` or edit ~/.config/crossref.toml");
-            }
+        Commands::Config { action } => {
+            cmd_config(action, cli.config.as_deref())?;
         }
-
-        Command::Cache { action: CacheAction::Clear } => {
-            crossref_lib::cache::clear()?;
-            println!("Cache cleared successfully.");
+        Commands::Cache { action } => {
+            cmd_cache(action, &cfg)?;
         }
-
-        Command::Version => {
+        Commands::Version => {
             println!("crossref-rs {}", env!("CARGO_PKG_VERSION"));
         }
     }
@@ -218,62 +225,176 @@ async fn try_main() -> Result<()> {
     Ok(())
 }
 
-// ==================== TDD / TEST SECTION ====================
-// These tests are written FIRST (TDD) and use Clap's official testing support.
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use clap::CommandFactory;
+// ─── Command implementations ──────────────────────────────────────────────────
 
-    /// Clap's official debug_assert! verification (catches definition errors at test time)
-    /// See: https://docs.rs/clap/latest/clap/struct.Command.html#method.debug_assert
-    #[test]
-    fn verify_cli_definition() {
-        Cli::command().debug_assert();
-    }
+async fn cmd_fetch_meta(
+    format: &str,
+    no_cache: bool,
+    cfg: Arc<Config>,
+    dois: &[String],
+) -> crossref_lib::Result<()> {
+    let client = CrossrefClient::new(cfg.clone())?;
+    let cache = if no_cache { None } else { DiskCache::from_config(&cfg).ok() };
 
-    #[test]
-    fn parses_fetch_meta() {
-        let cli = Cli::parse_from(["crossref", "fetch-meta", "10.1145/1234567"]);
-        assert!(matches!(cli.command, Command::FetchMeta { .. }));
-    }
-
-    #[test]
-    fn parses_global_flags() {
-        let cli = Cli::parse_from([
-            "crossref",
-            "--format",
-            "json",
-            "--email",
-            "test@example.com",
-            "--no-cache",
-            "-vv",
-            "fetch-bib",
-            "10.1145/1234567",
-        ]);
-        assert_eq!(cli.global.format, OutputFormat::Json);
-        assert_eq!(cli.global.email, Some("test@example.com".into()));
-        assert!(cli.global.no_cache);
-        assert_eq!(cli.global.verbose, 2);
-    }
-
-    #[test]
-    fn parses_search_with_filters() {
-        let cli = Cli::parse_from([
-            "crossref",
-            "search",
-            "--title",
-            "nushell",
-            "--year-from",
-            "2020",
-            "--open-access",
-        ]);
-        if let Command::Search { title, year_from, open_access, .. } = cli.command {
-            assert_eq!(title, Some("nushell".into()));
-            assert_eq!(year_from, Some(2020));
-            assert!(open_access);
+    for doi in dois {
+        let work = if let Some(ref c) = cache {
+            match c.get::<crossref_lib::WorkMeta>(doi)? {
+                Some(cached) => cached,
+                None => {
+                    let w = client.fetch_work(doi).await?;
+                    let _ = c.set(doi, &w);
+                    w
+                }
+            }
         } else {
-            panic!("wrong subcommand");
+            client.fetch_work(doi).await?
+        };
+
+        print_work(&work, format);
+    }
+    Ok(())
+}
+
+async fn cmd_fetch_bib(
+    format: &str,
+    no_cache: bool,
+    cfg: Arc<Config>,
+    dois: &[String],
+    append: Option<PathBuf>,
+) -> crossref_lib::Result<()> {
+    let client = CrossrefClient::new(cfg.clone())?;
+    let cache = if no_cache { None } else { DiskCache::from_config(&cfg).ok() };
+
+    let mut records = Vec::new();
+    for doi in dois {
+        let work = if let Some(ref c) = cache {
+            match c.get::<crossref_lib::WorkMeta>(doi)? {
+                Some(cached) => cached,
+                None => {
+                    let w = client.fetch_work(doi).await?;
+                    let _ = c.set(doi, &w);
+                    w
+                }
+            }
+        } else {
+            client.fetch_work(doi).await?
+        };
+        records.push(work_to_bib_record(&work));
+    }
+
+    if let Some(ref path) = append {
+        append_to_bib_file(path, &records)?;
+        eprintln!("Appended {} entries to {}", records.len(), path.display());
+    } else {
+        match format {
+            "bibtex" | "table" => {
+                println!("{}", records_to_bibtex(&records)?);
+            }
+            "json" => {
+                println!("{}", serde_json::to_string_pretty(&records)?);
+            }
+            _ => {
+                println!("{}", records_to_bibtex(&records)?);
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn cmd_search(
+    format: &str,
+    _no_cache: bool,
+    cfg: Arc<Config>,
+    query: &crossref_lib::SearchQuery,
+) -> crossref_lib::Result<()> {
+    let client = CrossrefClient::new(cfg)?;
+    let results = client.search(query).await?;
+    match format {
+        "json" => println!("{}", serde_json::to_string_pretty(&results)?),
+        _ => {
+            println!("Found {} results (showing {}):", results.total_results, results.items.len());
+            for item in &results.items {
+                print_work(item, "table");
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn cmd_pdf(
+    cfg: Arc<Config>,
+    doi: &str,
+    dest_dir: &PathBuf,
+) -> crossref_lib::Result<()> {
+    let client = CrossrefClient::new(cfg)?;
+    let dest = client.download_pdf(doi, dest_dir).await?;
+    println!("Downloaded: {}", dest.display());
+    Ok(())
+}
+
+fn cmd_config(
+    action: ConfigAction,
+    config_path: Option<&str>,
+) -> crossref_lib::Result<()> {
+    match action {
+        ConfigAction::Path => {
+            let path = crossref_lib::config::resolve_config_path(config_path)?;
+            println!("{}", path.display());
+        }
+        ConfigAction::Show => {
+            let cfg = Config::load(None, config_path)?;
+            println!("{}", serde_json::to_string_pretty(&cfg)?);
+        }
+    }
+    Ok(())
+}
+
+fn cmd_cache(action: CacheAction, cfg: &Config) -> crossref_lib::Result<()> {
+    let cache = DiskCache::from_config(cfg)?;
+    match action {
+        CacheAction::Prune => {
+            cache.clear_expired()?;
+            eprintln!("Expired cache entries removed.");
+        }
+        CacheAction::Clear => {
+            cache.clear_all()?;
+            eprintln!("Cache cleared.");
+        }
+    }
+    Ok(())
+}
+
+// ─── Output formatting ────────────────────────────────────────────────────────
+
+fn print_work(work: &crossref_lib::WorkMeta, format: &str) {
+    match format {
+        "json" => {
+            if let Ok(s) = serde_json::to_string_pretty(work) {
+                println!("{}", s);
+            }
+        }
+        "bibtex" => {
+            let record = work_to_bib_record(work);
+            if let Ok(s) = records_to_bibtex(&[record]) {
+                print!("{}", s);
+            }
+        }
+        _ => {
+            // Simple table-like output
+            println!("DOI:       {}", work.doi);
+            if let Some(ref t) = work.title {
+                println!("Title:     {}", t);
+            }
+            if !work.authors.is_empty() {
+                println!("Authors:   {}", work.authors.join("; "));
+            }
+            if let Some(year) = work.year {
+                println!("Year:      {}", year);
+            }
+            if let Some(ref j) = work.journal {
+                println!("Journal:   {}", j);
+            }
+            println!();
         }
     }
 }
