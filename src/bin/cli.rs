@@ -24,11 +24,11 @@ use crossref_lib::{
 )]
 struct Cli {
     /// Path to configuration file (default: ~/.config/crossref.toml)
-    #[arg(long, global = true, value_name = "FILE")]
+    #[arg(long, short = 'c', global = true, value_name = "FILE")]
     config: Option<String>,
 
     /// Override polite email for this invocation
-    #[arg(long, global = true, env = "CROSSREF_EMAIL", value_name = "EMAIL")]
+    #[arg(long, short = 'e', global = true, env = "CROSSREF_EMAIL", value_name = "EMAIL")]
     email: Option<String>,
 
     /// Disable response caching
@@ -64,11 +64,11 @@ enum Commands {
         dois: Vec<String>,
 
         /// Append to a .bib file (deduplicates automatically)
-        #[arg(long, value_name = "FILE")]
+        #[arg(long, short = 'a', value_name = "FILE")]
         append: Option<PathBuf>,
 
         /// Citation key style
-        #[arg(long, default_value = "author-year",
+        #[arg(long, short = 'k', default_value = "author-year",
               value_parser = ["author-year", "short-title"])]
         key_style: String,
     },
@@ -80,27 +80,27 @@ enum Commands {
         query: Option<String>,
 
         /// Filter by title
-        #[arg(long)]
+        #[arg(long, short = 't')]
         title: Option<String>,
 
         /// Filter by author
-        #[arg(long)]
+        #[arg(long, short = 'a')]
         author: Option<String>,
 
         /// Earliest publication year
-        #[arg(long, value_name = "YEAR")]
+        #[arg(long, short = 'F', value_name = "YEAR")]
         year_from: Option<i32>,
 
         /// Latest publication year
-        #[arg(long, value_name = "YEAR")]
+        #[arg(long, short = 'T', value_name = "YEAR")]
         year_to: Option<i32>,
 
         /// Work type filter (e.g. journal-article)
-        #[arg(long, value_name = "TYPE")]
+        #[arg(long, short = 'y', value_name = "TYPE")]
         r#type: Option<String>,
 
         /// Only return open-access items
-        #[arg(long)]
+        #[arg(long, short = 'A')]
         open_access: bool,
 
         /// Number of results to return
@@ -108,7 +108,7 @@ enum Commands {
         rows: u32,
 
         /// Sort order (score, updated, deposited, indexed, published)
-        #[arg(long, default_value = "score")]
+        #[arg(long, short = 's', default_value = "score")]
         sort: String,
     },
 

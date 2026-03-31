@@ -299,7 +299,7 @@ async fn test_download_pdf_success() {
     let unpaywall_server = MockServer::start().await;
     let pdf_server = MockServer::start().await;
     let doi = "10.1234/pdf";
-    let pdf_bytes = b"PDF content here";
+    let pdf_bytes = b"%PDF-1.4 fake pdf content";
 
     let pdf_url = format!("{}/paper.pdf", pdf_server.uri());
     let unpaywall_resp = json!({

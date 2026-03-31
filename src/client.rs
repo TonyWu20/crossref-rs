@@ -210,8 +210,11 @@ impl CrossrefClient {
             if let Ok(resp) = self.http.get(url).send().await {
                 if resp.status().is_success() {
                     if let Ok(bytes) = resp.bytes().await {
-                        std::fs::write(&dest, &bytes)?;
-                        return Ok(dest);
+                        if is_pdf(&bytes) {
+                            std::fs::write(&dest, &bytes)?;
+                            return Ok(dest);
+                        }
+                        // Response was HTML (landing page / paywall) — try fallbacks
                     }
                 }
             }
@@ -222,8 +225,10 @@ impl CrossrefClient {
                 if let Ok(resp) = self.http.get(&proxy_url).send().await {
                     if resp.status().is_success() {
                         if let Ok(bytes) = resp.bytes().await {
-                            std::fs::write(&dest, &bytes)?;
-                            return Ok(dest);
+                            if is_pdf(&bytes) {
+                                std::fs::write(&dest, &bytes)?;
+                                return Ok(dest);
+                            }
                         }
                     }
                 }
@@ -234,8 +239,10 @@ impl CrossrefClient {
             if let Ok(resp) = self.http.get(&proxy_url).send().await {
                 if resp.status().is_success() {
                     if let Ok(bytes) = resp.bytes().await {
-                        std::fs::write(&dest, &bytes)?;
-                        return Ok(dest);
+                        if is_pdf(&bytes) {
+                            std::fs::write(&dest, &bytes)?;
+                            return Ok(dest);
+                        }
                     }
                 }
             }
@@ -249,6 +256,14 @@ impl CrossrefClient {
 }
 
 // ─── Helper functions ────────────────────────────────────────────────────────
+
+/// Return `true` if `bytes` begins with the PDF magic number `%PDF-`.
+///
+/// Publishers often serve HTML landing pages (with 200 OK) at a URL that
+/// is labelled as a PDF link; checking the magic bytes avoids saving those.
+fn is_pdf(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"%PDF-")
+}
 
 /// Build an appropriate `User-Agent` string.
 fn build_user_agent(config: &Config) -> String {
@@ -309,19 +324,20 @@ fn map_work(w: crossref::Work) -> WorkMeta {
 fn build_works_query(q: &SearchQuery) -> crossref::WorksQuery {
     use chrono::NaiveDate;
 
-    let term = q
-        .query
-        .as_deref()
-        .unwrap_or("")
-        .to_string();
-    let mut wq = crossref::WorksQuery::new(term);
+    // The crossref crate's FieldQuery serialises as "title=value" instead of the
+    // correct "query.title=value", causing a validation-failure from the REST API.
+    // Combine all text inputs into the free-form query= parameter instead.
+    let mut term_parts: Vec<&str> = Vec::new();
+    if let Some(ref t) = q.query  { term_parts.push(t.as_str()); }
+    if let Some(ref t) = q.title  { term_parts.push(t.as_str()); }
+    if let Some(ref a) = q.author { term_parts.push(a.as_str()); }
+    let term = term_parts.join(" ");
 
-    if let Some(ref author) = q.author {
-        wq = wq.field_query(crossref::FieldQuery::author(author.as_str()));
-    }
-    if let Some(ref title) = q.title {
-        wq = wq.field_query(crossref::FieldQuery::title(title.as_str()));
-    }
+    let mut wq = if term.is_empty() {
+        crossref::WorksQuery::empty()
+    } else {
+        crossref::WorksQuery::new(term)
+    };
 
     wq = wq.result_control(crossref::WorkResultControl::Standard(
         crossref::query::ResultControl::Rows(q.rows as usize),

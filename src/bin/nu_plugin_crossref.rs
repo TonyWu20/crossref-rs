@@ -146,10 +146,10 @@ impl SimplePluginCommand for SearchCommand {
             .named("author", SyntaxShape::String, "Filter by author", Some('a'))
             .named("rows", SyntaxShape::Int, "Number of results", Some('n'))
             .named("email", SyntaxShape::String, "Override polite email", Some('e'))
-            .named("year-from", SyntaxShape::Int, "Earliest publication year", None)
-            .named("year-to", SyntaxShape::Int, "Latest publication year", None)
-            .named("type", SyntaxShape::String, "Work type filter (e.g. journal-article)", None)
-            .named("open-access", SyntaxShape::Boolean, "Only return open-access items", None)
+            .named("year-from", SyntaxShape::Int, "Earliest publication year", Some('F'))
+            .named("year-to", SyntaxShape::Int, "Latest publication year", Some('T'))
+            .named("type", SyntaxShape::String, "Work type filter (e.g. journal-article)", Some('y'))
+            .named("open-access", SyntaxShape::Boolean, "Only return open-access items", Some('A'))
             .named("sort", SyntaxShape::String, "Sort order (score, updated, deposited, indexed, published)", Some('s'))
     }
 
