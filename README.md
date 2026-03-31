@@ -34,7 +34,7 @@ cargo install --path .
 For the Nushell plugin, register it after installation:
 
 ```nu
-register (which nu_plugin_crossref | get path.0)
+plugin add (which nu_plugin_crossref | get path.0)
 ```
 
 ## Configuration
@@ -225,4 +225,4 @@ Short-title strips common stop-words (a, the, of, in, …) and takes up to four 
 
 ## License
 
-Licensed under either of [MIT](LICENSE-MIT) or [Apache 2.0](LICENSE-APACHE) at your option.
+Licensed under [MIT](LICENSE-MIT).
