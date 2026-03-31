@@ -1,3 +1,11 @@
+// When building for nushell 0.110, the renamed optional dep (nu-plugin-v110 /
+// nu-protocol-v110) is aliased back to the canonical crate names so the rest
+// of this file can remain version-agnostic.
+#[cfg(feature = "nu-v110")]
+extern crate nu_plugin_v110 as nu_plugin;
+#[cfg(feature = "nu-v110")]
+extern crate nu_protocol_v110 as nu_protocol;
+
 use nu_plugin::{
     serve_plugin, EvaluatedCall, EngineInterface, MsgPackSerializer, Plugin, PluginCommand,
     SimplePluginCommand,

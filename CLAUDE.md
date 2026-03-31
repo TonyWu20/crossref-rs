@@ -15,7 +15,8 @@ Both binaries depend exclusively on `crossref_lib`. No logic lives in the binary
 ## Common commands
 
 ```bash
-cargo build                        # build all targets
+cargo build                        # build all targets (nushell 0.111 plugin, default)
+cargo build --no-default-features --features nu-v110  # build with nushell 0.110 plugin
 cargo test                         # run all unit + integration tests (52 tests)
 cargo clippy -- -D warnings        # lint — must stay clean
 cargo clippy --fix --allow-dirty   # auto-fix lint issues
@@ -159,6 +160,22 @@ Config TOML keys: `email`, `proxy`, `default_rows`, `cache_ttl_days`, `cache_dir
 | `--output` | `-o` |
 
 Nu plugin `SearchCommand` carries the same short flags (`-F`, `-T`, `-y`, `-A`; `-e`, `-t`, `-a`, `-n`, `-s` already existed).
+
+## Nushell plugin version selection
+
+The `nu_plugin_crossref` binary can be compiled against two nu-plugin versions:
+
+| Feature flag | Nushell target | Build command |
+|---|---|---|
+| `nu-v111` (default) | nushell 0.111 | `cargo build` |
+| `nu-v110` | nushell 0.110 | `cargo build --no-default-features --features nu-v110` |
+
+**How it works:**
+- Both `nu-plugin 0.111` and `nu-plugin 0.110` are optional deps with distinct Cargo names (`nu-plugin-v110`, `nu-protocol-v110` for 0.110).
+- `src/bin/nu_plugin_crossref.rs` has `#[cfg(feature = "nu-v110")] extern crate nu_plugin_v110 as nu_plugin;` at the top; the rest of the file is version-agnostic.
+- `nu-plugin-core 0.110.0` (a transitive dep) had a broken `interprocess` import (`local_socket::traits::ListenerNonblockingMode` was moved to `local_socket::ListenerNonblockingMode` in interprocess 2.3.x). A local patch at `patches/nu-plugin-core-v110/` applies the same one-line fix that 0.111.0 contains. Cargo uses the patch only for the 0.110.0 dep resolution.
+
+**Key invariant:** Do not remove `[patch.crates-io]` from `Cargo.toml` — it's required for `nu-v110` builds. The patch is in `patches/nu-plugin-core-v110/` and must not be deleted.
 
 ## Current state (v0.1.0 — post-Phase 2 fixes)
 
