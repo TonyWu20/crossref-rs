@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 /// `Work` response and optionally enriched with Unpaywall OA data.
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[builder(setter(into), default)]
+#[derive(Default)]
 pub struct WorkMeta {
     pub doi: String,
     pub title: Option<String>,
@@ -27,45 +28,18 @@ pub struct WorkMeta {
     pub pdf_url: Option<String>,
 }
 
-impl Default for WorkMeta {
-    fn default() -> Self {
-        Self {
-            doi: String::new(),
-            title: None,
-            authors: Vec::new(),
-            year: None,
-            journal: None,
-            volume: None,
-            issue: None,
-            pages: None,
-            publisher: None,
-            work_type: None,
-            is_oa: None,
-            oa_status: None,
-            pdf_url: None,
-        }
-    }
-}
 
 /// A single BibTeX entry in a format compatible with `serde_bibtex` serialization.
 /// Fields use `BTreeMap` so the output is deterministically ordered.
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]
 #[builder(setter(into), default)]
+#[derive(Default)]
 pub struct BibRecord {
     pub entry_type: String,
     pub entry_key: String,
     pub fields: BTreeMap<String, String>,
 }
 
-impl Default for BibRecord {
-    fn default() -> Self {
-        Self {
-            entry_type: String::new(),
-            entry_key: String::new(),
-            fields: BTreeMap::new(),
-        }
-    }
-}
 
 /// Parameters for a Crossref works search request.
 #[derive(Debug, Clone, Serialize, Deserialize, Builder)]

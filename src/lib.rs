@@ -16,3 +16,4 @@ pub use client::CrossrefClient;
 pub use config::Config;
 pub use error::{CrossrefError, Result};
 pub use models::{BibRecord, SearchQuery, SearchResult, WorkMeta};
+pub use utils::KeyStyle;

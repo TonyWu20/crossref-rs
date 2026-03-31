@@ -39,7 +39,7 @@ impl DiskCache {
             .chars()
             .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '_' })
             .collect();
-        self.dir.join(format!("{}.json", safe))
+        self.dir.join(format!("{safe}.json"))
     }
 
     /// Retrieve a cached value for `key` if it exists and has not expired.

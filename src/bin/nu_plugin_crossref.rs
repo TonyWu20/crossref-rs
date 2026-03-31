@@ -146,6 +146,11 @@ impl SimplePluginCommand for SearchCommand {
             .named("author", SyntaxShape::String, "Filter by author", Some('a'))
             .named("rows", SyntaxShape::Int, "Number of results", Some('n'))
             .named("email", SyntaxShape::String, "Override polite email", Some('e'))
+            .named("year-from", SyntaxShape::Int, "Earliest publication year", None)
+            .named("year-to", SyntaxShape::Int, "Latest publication year", None)
+            .named("type", SyntaxShape::String, "Work type filter (e.g. journal-article)", None)
+            .named("open-access", SyntaxShape::Boolean, "Only return open-access items", None)
+            .named("sort", SyntaxShape::String, "Sort order (score, updated, deposited, indexed, published)", Some('s'))
     }
 
     fn run(
@@ -160,12 +165,22 @@ impl SimplePluginCommand for SearchCommand {
         let author: Option<String> = call.get_flag("author")?;
         let rows: Option<i64> = call.get_flag("rows")?;
         let email: Option<String> = call.get_flag("email")?;
+        let year_from: Option<i64> = call.get_flag("year-from")?;
+        let year_to: Option<i64> = call.get_flag("year-to")?;
+        let work_type: Option<String> = call.get_flag("type")?;
+        let open_access: Option<bool> = call.get_flag("open-access")?;
+        let sort: Option<String> = call.get_flag("sort")?;
 
         let search_q = SearchQueryBuilder::default()
             .query(query)
             .title(title)
             .author(author)
             .rows(rows.map(|r| r as u32).unwrap_or(10))
+            .year_from(year_from.map(|y| y as i32))
+            .year_to(year_to.map(|y| y as i32))
+            .work_type(work_type)
+            .open_access(open_access.unwrap_or(false))
+            .sort(sort)
             .build()
             .map_err(|e| LabeledError::new(e.to_string()))?;
 
@@ -242,13 +257,28 @@ impl SimplePluginCommand for PdfCommand {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/// Load config for the plugin context (no first-run guidance; raises an error
-/// if no email is available).
+/// Load config for the plugin context (no first-run guidance).
+///
+/// Returns an error with setup instructions if no email is configured.
+/// Set the `CROSSREF_EMAIL` environment variable or add `email = "..."` to
+/// your config file (`~/.config/crossref.toml`).
 fn load_config(
     email_override: Option<&str>,
     _engine: &EngineInterface,
 ) -> Result<Config, LabeledError> {
-    Config::load(email_override, None).map_err(|e| LabeledError::new(e.to_string()))
+    let cfg = Config::load(email_override, None)
+        .map_err(|e| LabeledError::new(e.to_string()))?;
+
+    if !cfg.has_email() {
+        return Err(LabeledError::new(
+            "No email address configured for Crossref polite-pool access. \
+             Set CROSSREF_EMAIL env var or add `email = \"you@example.com\"` \
+             to ~/.config/crossref.toml."
+                .to_string(),
+        ));
+    }
+
+    Ok(cfg)
 }
 
 /// Convert a `WorkMeta` to a Nushell `Value::Record`.
@@ -288,6 +318,20 @@ fn work_meta_to_nu_value(work: &crossref_lib::WorkMeta, span: nu_protocol::Span)
         "is_oa",
         work.is_oa
             .map(|v| Value::bool(v, span))
+            .unwrap_or(Value::nothing(span)),
+    );
+    record.push(
+        "oa_status",
+        work.oa_status
+            .as_deref()
+            .map(|s| Value::string(s, span))
+            .unwrap_or(Value::nothing(span)),
+    );
+    record.push(
+        "pdf_url",
+        work.pdf_url
+            .as_deref()
+            .map(|u| Value::string(u, span))
             .unwrap_or(Value::nothing(span)),
     );
 

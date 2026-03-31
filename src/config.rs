@@ -136,8 +136,8 @@ pub fn create_default_config(path: &PathBuf) -> Result<()> {
     let now = chrono::Local::now().format("%Y-%m-%d").to_string();
     let content = format!(
         r#"# crossref-rs Default Configuration File
-# Auto-generated on {date}
-# 自动生成于 {date}
+# Auto-generated on {now}
+# 自动生成于 {now}
 
 # [REQUIRED] Email for Crossref API polite-pool access.
 # 请填写您的真实邮箱地址，以避免被 Crossref 限速。
@@ -159,8 +159,7 @@ cache_ttl_days = 30
 # Optional: custom cache directory path.
 # 可选：自定义缓存目录路径。
 # cache_dir = "/path/to/cache"
-"#,
-        date = now
+"#
     );
 
     std::fs::write(path, content)?;
@@ -168,7 +167,7 @@ cache_ttl_days = 30
 }
 
 /// Print the first-run guidance box to stderr.
-pub fn print_first_run_guidance(path: &PathBuf) {
+pub fn print_first_run_guidance(path: &std::path::Path) {
     let path_str = path.display().to_string();
     let width = 64usize;
     let inner = width - 2;
@@ -181,7 +180,7 @@ pub fn print_first_run_guidance(path: &PathBuf) {
     let blank  = pad("", inner);
 
     let line1  = pad("A default configuration file has been created for you at:", inner);
-    let line2  = pad(&format!("  {}", path_str), inner);
+    let line2  = pad(&format!("  {path_str}"), inner);
     let line3  = pad("Please open it now and set your email address:", inner);
     let line4  = pad(r#"  email = "your.real.email@example.com""#, inner);
     let line5  = pad("Alternatively, set via environment variable (quick setup):", inner);
@@ -214,11 +213,11 @@ pub fn print_first_run_guidance(path: &PathBuf) {
     ]
     .join("\n");
 
-    eprintln!("{}", box_str);
+    eprintln!("{box_str}");
 }
 
 fn pad(s: &str, width: usize) -> String {
-    format!("{:<width$}", s, width = width)
+    format!("{s:<width$}")
 }
 
 fn center_pad(s: &str, width: usize) -> String {
@@ -233,5 +232,5 @@ fn center_pad(s: &str, width: usize) -> String {
 }
 
 fn row(content: &str) -> String {
-    format!("║{}║", content)
+    format!("║{content}║")
 }

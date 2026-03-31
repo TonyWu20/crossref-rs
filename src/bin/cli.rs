@@ -2,13 +2,15 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use clap::{Parser, Subcommand};
+use comfy_table::{Cell, Table};
 
 use crossref_lib::{
-    bibtex::{append_to_bib_file, records_to_bibtex, work_to_bib_record},
+    bibtex::{append_to_bib_file, records_to_bibtex, work_to_bib_record, work_to_bib_record_with_style},
     cache::DiskCache,
     client::CrossrefClient,
     config::Config,
     models::SearchQueryBuilder,
+    utils::KeyStyle,
 };
 
 // ─── CLI definition ───────────────────────────────────────────────────────────
@@ -158,7 +160,7 @@ enum CacheAction {
 #[tokio::main]
 async fn main() {
     if let Err(e) = run().await {
-        eprintln!("error: {}", e);
+        eprintln!("error: {e}");
         std::process::exit(1);
     }
 }
@@ -177,10 +179,11 @@ async fn run() -> crossref_lib::Result<()> {
 
     match cli.command {
         Commands::FetchMeta { dois } => {
-            cmd_fetch_meta(&cli.format, cli.no_cache, cfg, &dois).await?;
+            cmd_fetch_meta(&cli.format, cli.no_cache, cli.verbose, cfg, &dois).await?;
         }
-        Commands::FetchBib { dois, append, key_style: _ } => {
-            cmd_fetch_bib(&cli.format, cli.no_cache, cfg, &dois, append).await?;
+        Commands::FetchBib { dois, append, key_style } => {
+            let style = parse_key_style(&key_style);
+            cmd_fetch_bib(&cli.format, cli.no_cache, cli.verbose, cfg, &dois, append, style).await?;
         }
         Commands::Search {
             query,
@@ -205,7 +208,7 @@ async fn run() -> crossref_lib::Result<()> {
                 .sort(sort)
                 .build()
                 .map_err(|e| crossref_lib::CrossrefError::Builder(e.to_string()))?;
-            cmd_search(&cli.format, cli.no_cache, cfg, &search_q).await?;
+            cmd_search(&cli.format, cli.no_cache, cli.verbose, cfg, &search_q).await?;
         }
         Commands::Pdf { doi, output } => {
             let dest = output.unwrap_or_else(|| PathBuf::from("."));
@@ -230,17 +233,30 @@ async fn run() -> crossref_lib::Result<()> {
 async fn cmd_fetch_meta(
     format: &str,
     no_cache: bool,
+    verbose: bool,
     cfg: Arc<Config>,
     dois: &[String],
 ) -> crossref_lib::Result<()> {
     let client = CrossrefClient::new(cfg.clone())?;
     let cache = if no_cache { None } else { DiskCache::from_config(&cfg).ok() };
 
+    if verbose {
+        eprintln!("[verbose] cache: {}", if cache.is_some() { "enabled" } else { "disabled" });
+    }
+
     for doi in dois {
         let work = if let Some(ref c) = cache {
             match c.get::<crossref_lib::WorkMeta>(doi)? {
-                Some(cached) => cached,
+                Some(cached) => {
+                    if verbose {
+                        eprintln!("[verbose] cache HIT for {doi}");
+                    }
+                    cached
+                }
                 None => {
+                    if verbose {
+                        eprintln!("[verbose] cache MISS for {doi}");
+                    }
                     let w = client.fetch_work(doi).await?;
                     let _ = c.set(doi, &w);
                     w
@@ -258,19 +274,33 @@ async fn cmd_fetch_meta(
 async fn cmd_fetch_bib(
     format: &str,
     no_cache: bool,
+    verbose: bool,
     cfg: Arc<Config>,
     dois: &[String],
     append: Option<PathBuf>,
+    key_style: KeyStyle,
 ) -> crossref_lib::Result<()> {
     let client = CrossrefClient::new(cfg.clone())?;
     let cache = if no_cache { None } else { DiskCache::from_config(&cfg).ok() };
+
+    if verbose {
+        eprintln!("[verbose] cache: {}", if cache.is_some() { "enabled" } else { "disabled" });
+    }
 
     let mut records = Vec::new();
     for doi in dois {
         let work = if let Some(ref c) = cache {
             match c.get::<crossref_lib::WorkMeta>(doi)? {
-                Some(cached) => cached,
+                Some(cached) => {
+                    if verbose {
+                        eprintln!("[verbose] cache HIT for {doi}");
+                    }
+                    cached
+                }
                 None => {
+                    if verbose {
+                        eprintln!("[verbose] cache MISS for {doi}");
+                    }
                     let w = client.fetch_work(doi).await?;
                     let _ = c.set(doi, &w);
                     w
@@ -279,7 +309,7 @@ async fn cmd_fetch_bib(
         } else {
             client.fetch_work(doi).await?
         };
-        records.push(work_to_bib_record(&work));
+        records.push(work_to_bib_record_with_style(&work, &key_style));
     }
 
     if let Some(ref path) = append {
@@ -293,6 +323,10 @@ async fn cmd_fetch_bib(
             "json" => {
                 println!("{}", serde_json::to_string_pretty(&records)?);
             }
+            "yaml" => {
+                println!("{}", serde_yaml::to_string(&records)
+                    .map_err(|e| crossref_lib::CrossrefError::Api(e.to_string()))?);
+            }
             _ => {
                 println!("{}", records_to_bibtex(&records)?);
             }
@@ -303,19 +337,71 @@ async fn cmd_fetch_bib(
 
 async fn cmd_search(
     format: &str,
-    _no_cache: bool,
+    no_cache: bool,
+    verbose: bool,
     cfg: Arc<Config>,
     query: &crossref_lib::SearchQuery,
 ) -> crossref_lib::Result<()> {
-    let client = CrossrefClient::new(cfg)?;
-    let results = client.search(query).await?;
+    let client = CrossrefClient::new(cfg.clone())?;
+
+    // Build a stable cache key from the serialised query
+    let cache_key = format!("search:{}", serde_json::to_string(query)?);
+    let cache = if no_cache { None } else { DiskCache::from_config(&cfg).ok() };
+
+    if verbose {
+        eprintln!("[verbose] cache: {}", if cache.is_some() { "enabled" } else { "disabled" });
+    }
+
+    let results = if let Some(ref c) = cache {
+        match c.get::<crossref_lib::SearchResult>(&cache_key)? {
+            Some(cached) => {
+                if verbose {
+                    eprintln!("[verbose] cache HIT for search query");
+                }
+                cached
+            }
+            None => {
+                if verbose {
+                    eprintln!("[verbose] cache MISS for search query");
+                }
+                let r = client.search(query).await?;
+                let _ = c.set(&cache_key, &r);
+                r
+            }
+        }
+    } else {
+        client.search(query).await?
+    };
+
     match format {
         "json" => println!("{}", serde_json::to_string_pretty(&results)?),
+        "yaml" => {
+            println!("{}", serde_yaml::to_string(&results)
+                .map_err(|e| crossref_lib::CrossrefError::Api(e.to_string()))?);
+        }
         _ => {
             println!("Found {} results (showing {}):", results.total_results, results.items.len());
+            let mut table = Table::new();
+            table.set_header(vec!["DOI", "Title", "Authors", "Year", "Journal", "OA"]);
             for item in &results.items {
-                print_work(item, "table");
+                table.add_row(vec![
+                    Cell::new(&item.doi),
+                    Cell::new(item.title.as_deref().unwrap_or("-")),
+                    Cell::new(if item.authors.is_empty() {
+                        "-".to_string()
+                    } else {
+                        item.authors.join("; ")
+                    }),
+                    Cell::new(item.year.map(|y| y.to_string()).unwrap_or_else(|| "-".to_string())),
+                    Cell::new(item.journal.as_deref().unwrap_or("-")),
+                    Cell::new(match item.is_oa {
+                        Some(true) => "Yes",
+                        Some(false) => "No",
+                        None => "?",
+                    }),
+                ]);
             }
+            println!("{table}");
         }
     }
     Ok(())
@@ -324,7 +410,7 @@ async fn cmd_search(
 async fn cmd_pdf(
     cfg: Arc<Config>,
     doi: &str,
-    dest_dir: &PathBuf,
+    dest_dir: &std::path::Path,
 ) -> crossref_lib::Result<()> {
     let client = CrossrefClient::new(cfg)?;
     let dest = client.download_pdf(doi, dest_dir).await?;
@@ -370,31 +456,62 @@ fn print_work(work: &crossref_lib::WorkMeta, format: &str) {
     match format {
         "json" => {
             if let Ok(s) = serde_json::to_string_pretty(work) {
-                println!("{}", s);
+                println!("{s}");
+            }
+        }
+        "yaml" => {
+            if let Ok(s) = serde_yaml::to_string(work) {
+                print!("{s}");
             }
         }
         "bibtex" => {
             let record = work_to_bib_record(work);
             if let Ok(s) = records_to_bibtex(&[record]) {
-                print!("{}", s);
+                print!("{s}");
             }
         }
         _ => {
-            // Simple table-like output
-            println!("DOI:       {}", work.doi);
+            // comfy-table output
+            let mut table = Table::new();
+            table.set_header(vec!["Field", "Value"]);
+            table.add_row(vec![Cell::new("DOI"), Cell::new(&work.doi)]);
             if let Some(ref t) = work.title {
-                println!("Title:     {}", t);
+                table.add_row(vec![Cell::new("Title"), Cell::new(t)]);
             }
             if !work.authors.is_empty() {
-                println!("Authors:   {}", work.authors.join("; "));
+                table.add_row(vec![Cell::new("Authors"), Cell::new(work.authors.join("; "))]);
             }
             if let Some(year) = work.year {
-                println!("Year:      {}", year);
+                table.add_row(vec![Cell::new("Year"), Cell::new(year.to_string())]);
             }
             if let Some(ref j) = work.journal {
-                println!("Journal:   {}", j);
+                table.add_row(vec![Cell::new("Journal"), Cell::new(j)]);
             }
+            table.add_row(vec![
+                Cell::new("OA"),
+                Cell::new(match work.is_oa {
+                    Some(true) => "Yes",
+                    Some(false) => "No",
+                    None => "?",
+                }),
+            ]);
+            if let Some(ref status) = work.oa_status {
+                table.add_row(vec![Cell::new("OA Status"), Cell::new(status)]);
+            }
+            if let Some(ref url) = work.pdf_url {
+                table.add_row(vec![Cell::new("PDF"), Cell::new(url)]);
+            }
+            println!("{table}");
             println!();
         }
+    }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+fn parse_key_style(s: &str) -> KeyStyle {
+    match s {
+        "short-title" => KeyStyle::ShortTitle,
+        _ => KeyStyle::AuthorYear,
     }
 }
