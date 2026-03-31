@@ -79,7 +79,7 @@ Fetch metadata for one or more DOIs.
 ```bash
 crossref fetch-meta 10.1038/nature12373
 crossref fetch-meta 10.1038/nature12373 --format json
-crossref fetch-meta 10.1038/nature12373 10.1126/science.1245679
+crossref fetch-meta 10.1038/nature12373 10.1126/science.aaf7680
 ```
 
 ### fetch-bib
@@ -143,12 +143,12 @@ crossref cache clear    # wipe all cached entries
 
 ## Output Formats
 
-| Flag value | Description |
-|---|---|
-| `table` (default) | Human-readable terminal table |
-| `json` | Pretty-printed JSON |
-| `yaml` | YAML |
-| `bibtex` | BibTeX entries (`fetch-meta`, `fetch-bib`) |
+| Flag value        | Description                                |
+| ----------------- | ------------------------------------------ |
+| `table` (default) | Human-readable terminal table              |
+| `json`            | Pretty-printed JSON                        |
+| `yaml`            | YAML                                       |
+| `bibtex`          | BibTeX entries (`fetch-meta`, `fetch-bib`) |
 
 ## Nushell Plugin
 
@@ -204,24 +204,24 @@ async fn main() -> crossref_lib::Result<()> {
 
 ### Citation key styles
 
-| Style | Flag | Example |
-|---|---|---|
+| Style                 | Flag                      | Example                       |
+| --------------------- | ------------------------- | ----------------------------- |
 | Author-year (default) | `--key-style author-year` | `Smith2024`, `SmithJones2024` |
-| Short-title | `--key-style short-title` | `MachineLearning2024` |
+| Short-title           | `--key-style short-title` | `MachineLearning2024`         |
 
 Short-title strips common stop-words (a, the, of, in, …) and takes up to four significant title words. Key conflicts are resolved automatically by appending letter suffixes: `Smith2024`, `Smith2024a`, `Smith2024b`, …
 
 ### Entry type mapping
 
-| Crossref type | BibTeX type |
-|---|---|
-| journal-article | article |
-| book, monograph | book |
-| book-chapter | inbook |
+| Crossref type       | BibTeX type   |
+| ------------------- | ------------- |
+| journal-article     | article       |
+| book, monograph     | book          |
+| book-chapter        | inbook        |
 | proceedings-article | inproceedings |
-| dissertation | phdthesis |
-| report | techreport |
-| (other) | misc |
+| dissertation        | phdthesis     |
+| report              | techreport    |
+| (other)             | misc          |
 
 ## License
 
