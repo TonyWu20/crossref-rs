@@ -1,9 +1,9 @@
 # crossref-rs Project Specification (spec.md)
 
 **Project Name**: crossref-rs  
-**Version**: v0.4.0  
-**Status**: Revised  
-**Last Updated**: 2026-03-31  
+**Version**: v0.2.0
+**Status**: Revised
+**Last Updated**: 2026-04-01
 **Authors**: TWu20 (Tony Wu)
 **Goal**: Refactor the original Nushell Crossref tool into a high-performance, cross-platform Rust implementation that supports both Nushell native plugins and a standard CLI for use in any shell.
 
@@ -26,7 +26,7 @@
 
 All commands support the following common options:
 
-- `--format` / `-f`: `table` (default), `json`, `bibtex`, `yaml`
+- `--format` / `-f`: `table` (default), `json`, `bibtex`, `yaml`, `fzf`
 - `--config`: Path to config file (default: `~/.config/crossref.toml`)
 - `--no-cache`: Disable cache
 - `--verbose` / `-v`: Verbose output
@@ -70,7 +70,7 @@ All commands support the following common options:
 #### 2.2.1 Configuration Priority (Strict Order)
 
 1. **Command-line arguments** (`--email`, `--config`, etc.) — highest priority
-2. **Environment variables** (`CROSSREF_EMAIL`, `CROSSREF_PROXY`, `CROSSREF_ROWS`, `CROSSREF_CACHE_TTL_DAYS`, etc.)
+2. **Environment variables** (`CROSSREF_EMAIL`, `CROSSREF_PROXY`, `CROSSREF_ROWS`, `CROSSREF_CACHE_TTL_DAYS`, `CROSSREF_DEFAULT_FORMAT`, `CROSSREF_FUZZY_FINDER`, etc.)
 3. **Configuration file** (`~/.config/crossref.toml` or path specified by `--config`)
 4. **Built-in defaults**
 
@@ -117,6 +117,12 @@ cache_ttl_days = 30
 
 # Optional: custom cache directory
 # cache_dir = "/path/to/cache"
+
+# Default output format (table, json, yaml, bibtex, fzf)
+# default_format = "table"
+
+# Fuzzy finder program for interactive selection (default: fzf)
+# fuzzy_finder_cmd = "fzf"
 ```
 
 **Terminal Guidance Example** (with color support):
@@ -244,8 +250,9 @@ crossref-rs/
 
 ## 7. Roadmap
 
-- Phase 1 (Current): Core commands + first-run guidance + caching + configuration + **SRP/TDD/Builder/FP foundation**
+- Phase 1: Core commands + first-run guidance + caching + configuration + **SRP/TDD/Builder/FP foundation**
 - Phase 2: Deep Unpaywall integration, smart key generation, etc.
+- Phase 3 (Current): Fuzzy finder integration (`--format fzf`), configurable default output format, configurable fuzzy finder program
 
 ## 8. Contribution Guidelines
 

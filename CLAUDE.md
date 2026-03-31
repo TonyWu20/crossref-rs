@@ -78,7 +78,18 @@ tests/
 3. `~/.config/crossref.toml` (or `--config FILE`)
 4. Built-in defaults
 
-Config TOML keys: `email`, `proxy`, `default_rows`, `cache_ttl_days`, `cache_dir`.
+**Output format resolution** (highest → lowest):
+1. CLI `--format` flag
+2. `CROSSREF_DEFAULT_FORMAT` env var
+3. `default_format` in config file
+4. Built-in default: `"table"`
+
+**Fuzzy finder command** (highest → lowest):
+1. `CROSSREF_FUZZY_FINDER` env var
+2. `fuzzy_finder_cmd` in config file
+3. Built-in default: `"fzf"`
+
+Config TOML keys: `email`, `proxy`, `default_rows`, `cache_ttl_days`, `cache_dir`, `default_format`, `fuzzy_finder_cmd`.
 
 ### PDF download
 - `download_pdf` checks that the response body starts with the PDF magic bytes `%PDF-` before writing to disk.
@@ -104,6 +115,13 @@ Config TOML keys: `email`, `proxy`, `default_rows`, `cache_ttl_days`, `cache_dir
 - `KeyStyle::ShortTitle` → up to 4 significant title words (stop-words stripped) + year, e.g. `MachineLearning2024`.
 - Stop-word list lives in `utils::generate_short_title_key`.
 - Conflict resolution: `Smith2024` → `Smith2024a` → … → `Smith2024z` → `Smith2024aa` → …
+
+### Fuzzy finder output (`--format fzf`)
+- Outputs one line per result, tab-separated: `DOI\tTitle\tAuthors\tYear\tJournal\tOA`.
+- No decoration characters, no header — designed for piping to `fzf`, `skim`, or similar programs.
+- OA field shows `"OA"` for open-access items, empty string otherwise.
+- The `--format` flag defaults to `"table"` but can be overridden globally via `default_format` in config or `CROSSREF_DEFAULT_FORMAT` env var.
+- The fuzzy finder program is configurable via `fuzzy_finder_cmd` in config or `CROSSREF_FUZZY_FINDER` env var (default: `fzf`).
 
 ## Testing patterns
 
@@ -177,7 +195,7 @@ The `nu_plugin_crossref` binary can be compiled against two nu-plugin versions:
 
 **Key invariant:** Do not remove `[patch.crates-io]` from `Cargo.toml` — it's required for `nu-v110` builds. The patch is in `patches/nu-plugin-core-v110/` and must not be deleted.
 
-## Current state (v0.1.0 — post-Phase 2 fixes)
+## Current state (v0.2.0)
 
 All 52 tests pass. `cargo clippy -- -D warnings` clean.
 
@@ -195,3 +213,6 @@ Implemented and shipped:
 - `build_works_query` rewritten to avoid `FieldQuery` crate bug (validation-failure fix)
 - `download_pdf` PDF magic-byte check (prevents saving HTML landing pages)
 - Short flags added to CLI and Nu plugin (`-c`, `-e`, `-F`, `-T`, `-y`, `-A`, `-k`, `-a`, `-s`, `-t`)
+- **`--format fzf`**: fuzzy-finder-friendly plain text output (tab-separated, one line per result)
+- **Configurable default output format** via `default_format` config key / `CROSSREF_DEFAULT_FORMAT` env var
+- **Configurable fuzzy finder program** via `fuzzy_finder_cmd` config key / `CROSSREF_FUZZY_FINDER` env var (default: `fzf`)
