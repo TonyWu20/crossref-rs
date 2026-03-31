@@ -36,9 +36,9 @@ struct Cli {
     no_cache: bool,
 
     /// Output format
-    #[arg(long, short = 'f', global = true, default_value = "table",
-          value_parser = ["table", "json", "bibtex", "yaml"])]
-    format: String,
+    #[arg(long, short = 'f', global = true,
+          value_parser = ["table", "json", "bibtex", "yaml", "fzf"])]
+    format: Option<String>,
 
     /// Enable verbose output
     #[arg(long, short = 'v', global = true)]
@@ -177,13 +177,18 @@ async fn run() -> crossref_lib::Result<()> {
         None => std::process::exit(0),
     };
 
+    // Resolve output format: CLI flag > config default_format > "table"
+    let format = cli.format
+        .or_else(|| cfg.default_format.clone())
+        .unwrap_or_else(|| "table".to_string());
+
     match cli.command {
         Commands::FetchMeta { dois } => {
-            cmd_fetch_meta(&cli.format, cli.no_cache, cli.verbose, cfg, &dois).await?;
+            cmd_fetch_meta(&format, cli.no_cache, cli.verbose, cfg, &dois).await?;
         }
         Commands::FetchBib { dois, append, key_style } => {
             let style = parse_key_style(&key_style);
-            cmd_fetch_bib(&cli.format, cli.no_cache, cli.verbose, cfg, &dois, append, style).await?;
+            cmd_fetch_bib(&format, cli.no_cache, cli.verbose, cfg, &dois, append, style).await?;
         }
         Commands::Search {
             query,
@@ -208,7 +213,7 @@ async fn run() -> crossref_lib::Result<()> {
                 .sort(sort)
                 .build()
                 .map_err(|e| crossref_lib::CrossrefError::Builder(e.to_string()))?;
-            cmd_search(&cli.format, cli.no_cache, cli.verbose, cfg, &search_q).await?;
+            cmd_search(&format, cli.no_cache, cli.verbose, cfg, &search_q).await?;
         }
         Commands::Pdf { doi, output } => {
             let dest = output.unwrap_or_else(|| PathBuf::from("."));
@@ -379,6 +384,24 @@ async fn cmd_search(
             println!("{}", serde_yaml::to_string(&results)
                 .map_err(|e| crossref_lib::CrossrefError::Api(e.to_string()))?);
         }
+        "fzf" => {
+            for item in &results.items {
+                let authors = if item.authors.is_empty() {
+                    "-".to_string()
+                } else {
+                    item.authors.join("; ")
+                };
+                let year = item.year.map(|y| y.to_string()).unwrap_or_else(|| "-".to_string());
+                let title = item.title.as_deref().unwrap_or("-");
+                let journal = item.journal.as_deref().unwrap_or("-");
+                let oa = match item.is_oa {
+                    Some(true) => "OA",
+                    Some(false) => "",
+                    None => "",
+                };
+                println!("{}\t{}\t{}\t{}\t{}\t{}", item.doi, title, authors, year, journal, oa);
+            }
+        }
         _ => {
             println!("Found {} results (showing {}):", results.total_results, results.items.len());
             let mut table = Table::new();
@@ -469,6 +492,22 @@ fn print_work(work: &crossref_lib::WorkMeta, format: &str) {
             if let Ok(s) = records_to_bibtex(&[record]) {
                 print!("{s}");
             }
+        }
+        "fzf" => {
+            let authors = if work.authors.is_empty() {
+                "-".to_string()
+            } else {
+                work.authors.join("; ")
+            };
+            let year = work.year.map(|y| y.to_string()).unwrap_or_else(|| "-".to_string());
+            let title = work.title.as_deref().unwrap_or("-");
+            let journal = work.journal.as_deref().unwrap_or("-");
+            let oa = match work.is_oa {
+                Some(true) => "OA",
+                Some(false) => "",
+                None => "",
+            };
+            println!("{}\t{}\t{}\t{}\t{}\t{}", work.doi, title, authors, year, journal, oa);
         }
         _ => {
             // comfy-table output

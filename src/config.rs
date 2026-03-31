@@ -22,6 +22,11 @@ pub struct Config {
     pub cache_ttl_days: u32,
     /// Override the default XDG cache directory.
     pub cache_dir: Option<String>,
+    /// Default output format (table, json, yaml, bibtex, fzf).
+    /// Overridden by CLI `--format` flag.
+    pub default_format: Option<String>,
+    /// Fuzzy finder program for interactive selection (default: fzf).
+    pub fuzzy_finder_cmd: Option<String>,
 }
 
 impl Default for Config {
@@ -33,6 +38,8 @@ impl Default for Config {
             default_rows: 10,
             cache_ttl_days: 30,
             cache_dir: None,
+            default_format: None,
+            fuzzy_finder_cmd: None,
         }
     }
 }
@@ -68,6 +75,16 @@ impl Config {
         if let Ok(ttl) = std::env::var("CROSSREF_CACHE_TTL_DAYS") {
             if let Ok(n) = ttl.parse::<u32>() {
                 cfg.cache_ttl_days = n;
+            }
+        }
+        if let Ok(fmt) = std::env::var("CROSSREF_DEFAULT_FORMAT") {
+            if !fmt.is_empty() {
+                cfg.default_format = Some(fmt);
+            }
+        }
+        if let Ok(cmd) = std::env::var("CROSSREF_FUZZY_FINDER") {
+            if !cmd.is_empty() {
+                cfg.fuzzy_finder_cmd = Some(cmd);
             }
         }
 
@@ -115,6 +132,11 @@ impl Config {
     pub fn has_email(&self) -> bool {
         self.email.as_deref().map(|e| !e.is_empty()).unwrap_or(false)
     }
+
+    /// Returns the configured fuzzy finder command, defaulting to `"fzf"`.
+    pub fn fuzzy_finder(&self) -> &str {
+        self.fuzzy_finder_cmd.as_deref().unwrap_or("fzf")
+    }
 }
 
 /// Returns the resolved path to the config file.
@@ -159,6 +181,14 @@ cache_ttl_days = 30
 # Optional: custom cache directory path.
 # 可选：自定义缓存目录路径。
 # cache_dir = "/path/to/cache"
+
+# Default output format (table, json, yaml, bibtex, fzf).
+# 默认输出格式。设置为 "fzf" 可输出适用于模糊查找的纯文本行。
+# default_format = "table"
+
+# Fuzzy finder program for interactive selection (default: fzf).
+# 模糊查找程序，默认使用 fzf，也可设置为 skim 等其他程序。
+# fuzzy_finder_cmd = "fzf"
 "#
     );
 

@@ -16,6 +16,8 @@ fn test_config() -> Arc<Config> {
         default_rows: 10,
         cache_ttl_days: 0,
         cache_dir: None,
+        default_format: None,
+        fuzzy_finder_cmd: None,
     })
 }
 
