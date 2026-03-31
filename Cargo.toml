@@ -33,7 +33,7 @@ path = "src/lib.rs"
 
 # Standard CLI binary (works in zsh, fish, bash, PowerShell, etc.)
 [[bin]]
-name = "crossref"
+name = "crossref-cli"
 path = "src/bin/cli.rs"
 
 # Nushell plugin binary — only built when a nu-plugin version is selected.

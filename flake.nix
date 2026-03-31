@@ -19,6 +19,17 @@
       forAllSystems = nixpkgs.lib.genAttrs systems;
     in
     {
+      packages = forAllSystems (system:
+        let pkgs = pkgsFor system; in
+        {
+          # Nushell plugin — primary target; also exposed as `default`.
+          nu_plugin_crossref = pkgs.callPackage ./package.nix { v110 = false; };
+          # Universal CLI binary — renamed from `crossref` to avoid shadowing
+          # the nu_plugin_crossref sub-commands in nushell's namespace.
+          crossref-cli = pkgs.callPackage ./package-cli.nix { };
+          default = pkgs.callPackage ./package.nix { v110 = false; };
+        });
+
       devShells = forAllSystems (
         system:
         let
