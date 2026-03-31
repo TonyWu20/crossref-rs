@@ -60,6 +60,7 @@ tests/
 - `WorksFilter::FromPubDate` / `UntilPubDate` take `chrono::NaiveDate`.
 - Use `crossref::Type::from_str` for known type strings; fall back to `WorksFilter::TypeName` for unknown strings.
 - Open-access filter is approximated with `WorksFilter::HasLicense`.
+- **Known crate bug**: `FieldQuery::param_key()` returns `"title"` instead of `"query.title"`, causing the Crossref REST API to return `validation-failure`. **Do not use `FieldQuery`**. Combine all text inputs (`query`, `title`, `author`) into the free-form `query=` parameter via `WorksQuery::new(term)`. Use `WorksQuery::empty()` when no text is provided (passing an empty string to `WorksQuery::new` also triggers validation-failure).
 
 ### Unpaywall enrichment
 - `fetch_work` auto-calls `fetch_unpaywall` and merges `is_oa`, `oa_status`, `pdf_url` into `WorkMeta`.
@@ -77,6 +78,12 @@ tests/
 4. Built-in defaults
 
 Config TOML keys: `email`, `proxy`, `default_rows`, `cache_ttl_days`, `cache_dir`.
+
+### PDF download
+- `download_pdf` checks that the response body starts with the PDF magic bytes `%PDF-` before writing to disk.
+- Publishers frequently return HTML landing pages (status 200) at OA PDF URLs; the magic-byte check prevents saving garbage HTML.
+- Helper: `fn is_pdf(bytes: &[u8]) -> bool { bytes.starts_with(b"%PDF-") }` in `src/client.rs`.
+- Download attempt order: (1) direct Unpaywall `url_for_pdf`, (2) EZproxy fallback (`config.proxy`), (3) return `Err(CrossrefError::PdfDownload(...))`.
 
 ### Cache
 - `ttl_days = 0` disables the cache entirely.
@@ -118,9 +125,46 @@ Config TOML keys: `email`, `proxy`, `default_rows`, `cache_ttl_days`, `cache_dir
 - Unpaywall errors must never cause `fetch_work` to return `Err`. Log warning, return work without OA fields.
 - `cargo clippy -- -D warnings` must stay clean before any commit. Run `cargo clippy --fix --allow-dirty` to auto-apply fixes.
 
-## Current state (v0.1.0 — Phase 2 complete)
+## Short flags reference
 
-All 52 tests pass. All plan items implemented:
+### Global (both CLI and subcommands)
+| Flag | Short |
+|---|---|
+| `--config` | `-c` |
+| `--email` | `-e` |
+| `--format` | `-f` |
+| `--verbose` | `-v` |
+
+### `fetch-bib`
+| Flag | Short |
+|---|---|
+| `--append` | `-a` |
+| `--key-style` | `-k` |
+
+### `search`
+| Flag | Short |
+|---|---|
+| `--title` | `-t` |
+| `--author` | `-a` |
+| `--year-from` | `-F` |
+| `--year-to` | `-T` |
+| `--type` | `-y` |
+| `--open-access` | `-A` |
+| `--rows` | `-n` |
+| `--sort` | `-s` |
+
+### `pdf`
+| Flag | Short |
+|---|---|
+| `--output` | `-o` |
+
+Nu plugin `SearchCommand` carries the same short flags (`-F`, `-T`, `-y`, `-A`; `-e`, `-t`, `-a`, `-n`, `-s` already existed).
+
+## Current state (v0.1.0 — post-Phase 2 fixes)
+
+All 52 tests pass. `cargo clippy -- -D warnings` clean.
+
+Implemented and shipped:
 - Search filters forwarded to Crossref API (date range, type, OA)
 - Unpaywall auto-enrichment in `fetch_work`
 - EZproxy fallback in `download_pdf`
@@ -131,3 +175,6 @@ All 52 tests pass. All plan items implemented:
 - `comfy-table` table rendering
 - `--verbose` flag threaded through command handlers
 - Nu plugin search params parity (`--year-from`, `--year-to`, `--type`, `--open-access`, `--sort`)
+- `build_works_query` rewritten to avoid `FieldQuery` crate bug (validation-failure fix)
+- `download_pdf` PDF magic-byte check (prevents saving HTML landing pages)
+- Short flags added to CLI and Nu plugin (`-c`, `-e`, `-F`, `-T`, `-y`, `-A`, `-k`, `-a`, `-s`, `-t`)
