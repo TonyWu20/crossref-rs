@@ -9,6 +9,23 @@ repository = "https://github.com/TonyWu20/crossref-rs"
 keywords = ["crossref", "bibtex", "literature", "nushell", "cli"]
 categories = ["command-line-utilities", "science"]
 
+# ─── Feature flags ────────────────────────────────────────────────────────────
+#
+# Select which Nushell version the plugin binary targets:
+#
+#   Default (nushell 0.111):  cargo build
+#   Nushell 0.110:            cargo build --no-default-features --features nu-v110
+#
+# The CLI binary is unaffected by these flags.
+[features]
+default = ["nu-v111"]
+nu-v111 = ["nu-plugin-any", "dep:nu-plugin", "dep:nu-protocol"]
+nu-v110 = ["nu-plugin-any", "dep:nu-plugin-v110", "dep:nu-protocol-v110"]
+# Internal meta-feature — active when any nu-plugin version is selected.
+# Used by the nu_plugin_crossref [[bin]] required-features so that the
+# binary is silently skipped (not an error) when no nu feature is chosen.
+nu-plugin-any = []
+
 # Shared library (used by both CLI and Nushell plugin)
 [lib]
 name = "crossref_lib"
@@ -19,10 +36,11 @@ path = "src/lib.rs"
 name = "crossref"
 path = "src/bin/cli.rs"
 
-# Nushell plugin binary (registered with `register nu_plugin_crossref`)
+# Nushell plugin binary — only built when a nu-plugin version is selected.
 [[bin]]
 name = "nu_plugin_crossref"
 path = "src/bin/nu_plugin_crossref.rs"
+required-features = ["nu-plugin-any"]
 
 [dependencies]
 # CLI & argument parsing
@@ -56,9 +74,11 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 toml = "1.1.0"
 
-# Nushell plugin support
-nu-plugin = "0.111"
-nu-protocol = "0.111"
+# Nushell plugin support — version selected via feature flags (see [features] above)
+nu-plugin = { version = "0.111", optional = true }
+nu-protocol = { version = "0.111", optional = true }
+nu-plugin-v110 = { package = "nu-plugin", version = "0.110", optional = true }
+nu-protocol-v110 = { package = "nu-protocol", version = "0.110", optional = true }
 
 # Output formatting
 comfy-table = "7.2"
@@ -76,3 +96,14 @@ tempfile = "3.17.0"
 # Nix-specific build notes (optional but recommended)
 [build-dependencies]
 # None needed — your flake.nix already provides the toolchain
+
+# ─── Patches ──────────────────────────────────────────────────────────────────
+#
+# nu-plugin-core 0.110.0 imports ListenerNonblockingMode from
+# interprocess::local_socket::traits, but that path was removed in
+# interprocess 2.3.x (the type moved to interprocess::local_socket).
+# This local patch applies the same one-line fix that nu-plugin-core 0.111.0
+# already contains.  Cargo will use it only when resolving nu-plugin-core
+# 0.110.0; the 0.111.0 build is unaffected.
+[patch.crates-io]
+nu-plugin-core = { path = "patches/nu-plugin-core-v110" }
