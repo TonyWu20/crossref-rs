@@ -24,6 +24,7 @@
         {
           # Nushell plugin — primary target; also exposed as `default`.
           nu_plugin_crossref = pkgs.callPackage ./package.nix { v110 = false; };
+          nu_plugin_crossref_v110 = pkgs.callPackage ./package.nix { v110 = true; };
           # Universal CLI binary — renamed from `crossref` to avoid shadowing
           # the nu_plugin_crossref sub-commands in nushell's namespace.
           crossref-cli = pkgs.callPackage ./package-cli.nix { };

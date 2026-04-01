@@ -6,31 +6,14 @@
 
 rustPlatform.buildRustPackage rec {
   pname = "nu_plugin_crossref";
-  version = "0.2.0";
+  version = "0.3.1";
 
   src = fetchFromGitHub {
     owner = "TonyWu20";
     repo = "crossref-rs";
     tag = "v${version}";
-    # Run `nix-prefetch-github TonyWu20 crossref-rs --rev v0.2.0` to obtain.
-    hash = "sha256-DJRaQ+NAK6pseLxglQJ7GRAMs2rZYSklZxjjXC3zpAI=";
+    hash = "sha256-9tv+8FyOxjX7ckOkORtm5pmf2+Fwmvafxoa1gtdF0Vo=";
   };
-
-  # The Cargo.lock contains one non-registry path dependency: the local patch
-  # for nu-plugin-core 0.110.0 (patches/nu-plugin-core-v110/).  This patch is
-  # only compiled when the `nu-v110` feature is active (not the default), but
-  # importCargoLock still requires its hash because the entry exists in the
-  # lock file.
-  #
-  # Compute with:
-  #   nix hash path --base32 patches/nu-plugin-core-v110/
-  #   cargoLock = {
-  #     lockFile = ./Cargo.lock;
-  #     outputHashes = {
-  #       "nu-plugin-core-0.110.0" = "sha256-01a4wvc4vcwgc4zn4pdclzb65p2cny9nhnqq9rsfvhpwmdg5b99d
-  # ";
-  #     };
-  #   };
 
   # Build only the Nushell plugin binary.  The default feature set already
   # selects `nu-v111` (nushell 0.111); no extra flags are needed.
@@ -42,7 +25,7 @@ rustPlatform.buildRustPackage rec {
     "nu-v110"
   ];
 
-  cargoHash = "sha256-NEahxhX9ZsypTXOqzGtqcQxxE7CoWTEU8xkM/Ub4cfs=";
+  cargoHash = "sha256-VVMCc/nPflwtGC6E58NHkjBAPmN/IF1gYUNUFCT8ew8=";
 
   # reqwest 0.13 defaults to rustls (pure-Rust TLS).  On macOS,
   # rustls-platform-verifier reads the system trust store via the Security
