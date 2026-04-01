@@ -144,7 +144,17 @@ impl CrossrefClient {
             let wq = build_works_query(&query);
             let result = client
                 .works(wq)
-                .map_err(|e| CrossrefError::Api(e.to_string()))?;
+                .map_err(|e| {
+                    let msg = e.to_string();
+                    // The `crossref` crate prefixes serde failures with
+                    // "invalid serde"; treat those as parse errors rather
+                    // than API errors so callers can show targeted guidance.
+                    if msg.contains("invalid serde") || msg.contains("missing field") {
+                        CrossrefError::Parse(msg)
+                    } else {
+                        CrossrefError::Api(msg)
+                    }
+                })?;
             Ok::<_, CrossrefError>(result)
         })
         .await

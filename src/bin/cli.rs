@@ -74,6 +74,15 @@ enum Commands {
     },
 
     /// Search Crossref for literature
+    ///
+    /// Designed for targeted, goal-oriented lookups — not exploratory browsing.
+    /// Provide specific terms such as author names, a title fragment, or journal
+    /// name.  At least one of QUERY, --title, or --author must be supplied.
+    ///
+    /// Examples:
+    ///   crossref-cli search "Attention is all you need"
+    ///   crossref-cli search --author "Vaswani" --year-from 2017
+    ///   crossref-cli search --title "atomic strain" --author Mishin
     Search {
         /// Free-text query
         #[arg(value_name = "QUERY")]
@@ -160,7 +169,24 @@ enum CacheAction {
 #[tokio::main]
 async fn main() {
     if let Err(e) = run().await {
-        eprintln!("error: {e}");
+        match &e {
+            crossref_lib::CrossrefError::Usage(_) => {
+                // Usage messages are self-contained; no "error:" prefix needed.
+                eprintln!("{e}");
+            }
+            crossref_lib::CrossrefError::Parse(_) => {
+                eprintln!("error: {e}");
+                eprintln!();
+                eprintln!("hint: Short or vague queries can return diverse Crossref entry types");
+                eprintln!("      (datasets, components, book chapters, etc.) that lack a title");
+                eprintln!("      or other standard metadata fields.");
+                eprintln!("      Try narrowing your search with author names, journal title,");
+                eprintln!("      or publication year to get more consistent results.");
+            }
+            _ => {
+                eprintln!("error: {e}");
+            }
+        }
         std::process::exit(1);
     }
 }
@@ -201,6 +227,29 @@ async fn run() -> crossref_lib::Result<()> {
             rows,
             sort,
         } => {
+            let has_terms = query.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false)
+                || title.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false)
+                || author.as_ref().map(|s| !s.trim().is_empty()).unwrap_or(false);
+            if !has_terms {
+                return Err(crossref_lib::CrossrefError::Usage(
+                    "error: the search command requires at least one search term.\n\
+                     \n\
+                     Provide at least one of:\n\
+                       QUERY   positional free-text  e.g. \"atomic strain in Cu\"\n\
+                       --title / -t                  e.g. --title \"atomic strain\"\n\
+                       --author / -a                 e.g. --author Mishin\n\
+                     \n\
+                     crossref search is designed for targeted, goal-oriented lookups —\n\
+                     not exploratory browsing like Google Scholar.\n\
+                     Include author names, a title fragment, or journal name for best results.\n\
+                     \n\
+                     Examples:\n\
+                       crossref-cli search \"Attention is all you need\"\n\
+                       crossref-cli search --author \"Vaswani\" --year-from 2017\n\
+                       crossref-cli search --title \"atomic strain\" --author Mishin"
+                        .to_string(),
+                ));
+            }
             let search_q = SearchQueryBuilder::default()
                 .query(query)
                 .title(title)

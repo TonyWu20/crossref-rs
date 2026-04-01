@@ -8,6 +8,17 @@ pub enum CrossrefError {
     #[error("Crossref API error: {0}")]
     Api(String),
 
+    /// The Crossref API returned a response our code could not decode.
+    /// Typically caused by missing or unexpected fields in unusual entry types
+    /// (datasets, book chapters, components) that the API returned alongside
+    /// standard journal articles.
+    #[error("Failed to decode Crossref API response: {0}")]
+    Parse(String),
+
+    /// Invalid user input — the error message contains actionable guidance.
+    #[error("{0}")]
+    Usage(String),
+
     #[error("Configuration error: {0}")]
     Config(String),
 

@@ -144,7 +144,7 @@ impl SimplePluginCommand for SearchCommand {
     }
 
     fn description(&self) -> &str {
-        "Search Crossref for literature"
+        "Search Crossref for literature (targeted lookups; provide author, title, or free-text query)"
     }
 
     fn signature(&self) -> Signature {
@@ -171,6 +171,20 @@ impl SimplePluginCommand for SearchCommand {
         let query: Option<String> = call.opt(0)?;
         let title: Option<String> = call.get_flag("title")?;
         let author: Option<String> = call.get_flag("author")?;
+
+        let has_terms = query.as_ref().map(|s: &String| !s.trim().is_empty()).unwrap_or(false)
+            || title.as_ref().map(|s: &String| !s.trim().is_empty()).unwrap_or(false)
+            || author.as_ref().map(|s: &String| !s.trim().is_empty()).unwrap_or(false);
+        if !has_terms {
+            return Err(LabeledError::new(
+                "crossref search requires at least one search term.\n\
+                 Provide at least one of: the positional QUERY, --title (-t), or --author (-a).\n\
+                 \n\
+                 This command is designed for targeted lookups, not exploratory browsing.\n\
+                 Include author names, a title fragment, or journal name for best results.",
+            ));
+        }
+
         let rows: Option<i64> = call.get_flag("rows")?;
         let email: Option<String> = call.get_flag("email")?;
         let year_from: Option<i64> = call.get_flag("year-from")?;
@@ -200,7 +214,18 @@ impl SimplePluginCommand for SearchCommand {
 
         let results = rt
             .block_on(client.search(&search_q))
-            .map_err(|e| LabeledError::new(e.to_string()))?;
+            .map_err(|e| {
+                if matches!(e, crossref_lib::CrossrefError::Parse(_)) {
+                    LabeledError::new(format!(
+                        "{e}\n\
+                         Hint: Short or vague queries may return non-article content types \
+                         (datasets, components) that lack standard metadata fields.\n\
+                         Try adding author names, journal title, or year to narrow results."
+                    ))
+                } else {
+                    LabeledError::new(e.to_string())
+                }
+            })?;
 
         let list: Vec<Value> = results
             .items
