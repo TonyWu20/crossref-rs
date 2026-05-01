@@ -31,6 +31,16 @@
           default = pkgs.callPackage ./package.nix { v110 = false; };
         });
 
+      # Overlay so users can add these packages to their system/user profile
+      # via `packages = with pkgs; [ crossref-cli nu_plugin_crossref ]`.
+      overlays = {
+        default = final: prev: {
+          crossref-cli = final.callPackage ./package-cli.nix { };
+          nu_plugin_crossref = final.callPackage ./package.nix { v110 = false; };
+          nu_plugin_crossref_v110 = final.callPackage ./package.nix { v110 = true; };
+        };
+      };
+
       devShells = forAllSystems (
         system:
         let
