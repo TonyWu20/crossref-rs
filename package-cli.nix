@@ -1,34 +1,14 @@
 { lib
 , rustPlatform
-, fetchFromGitHub
 }:
 
 rustPlatform.buildRustPackage rec {
   pname = "crossref-cli";
-  version = "0.2.0";
+  version = "0.3.1";
 
-  src = fetchFromGitHub {
-    owner = "TonyWu20";
-    repo = "crossref-rs";
-    tag = "v${version}";
-    # Run `nix-prefetch-github TonyWu20 crossref-rs --rev v0.2.0` to obtain.
-    hash = "sha256-DJRaQ+NAK6pseLxglQJ7GRAMs2rZYSklZxjjXC3zpAI=";
-  };
+  src = ./.;
 
-  # The Cargo.lock contains one non-registry path dependency: the local patch
-  # for nu-plugin-core 0.110.0 (patches/nu-plugin-core-v110/).  This patch is
-  # only compiled when the `nu-v110` feature is active (not the default), but
-  # importCargoLock still requires its hash because the entry exists in the
-  # lock file.
-  #
-  # Compute with:
-  #   nix hash path --base32 patches/nu-plugin-core-v110/
-  cargoLock = {
-    lockFile = ./Cargo.lock;
-    outputHashes = {
-      "nu-plugin-core-0.110.0" = "sha256-01a4wvc4vcwgc4zn4pdclzb65p2cny9nhnqq9rsfvhpwmdg5b99d";
-    };
-  };
+  cargoHash = "sha256-VVMCc/nPflwtGC6E58NHkjBAPmN/IF1gYUNUFCT8ew8=";
 
   # Build only the CLI binary.  The default feature set (nu-v111) enables the
   # nu-plugin dependencies which are not needed here, so we explicitly request
