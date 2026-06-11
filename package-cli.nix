@@ -6,7 +6,7 @@ rustPlatform.buildRustPackage rec {
   pname = "crossref-cli";
   version = "0.3.1";
 
-  src = ./.;
+  src = builtins.path { path = ./.; name = "source"; };
 
   cargoHash = "sha256-VVMCc/nPflwtGC6E58NHkjBAPmN/IF1gYUNUFCT8ew8=";
 
